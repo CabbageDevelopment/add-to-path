@@ -30,7 +30,6 @@ chdir.here(__file__)
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
-
 setup(
     name="addtopath",
     version=addtopath.__version__,
@@ -39,7 +38,6 @@ setup(
     description="CLI tool for adding things to the PATH on Windows",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/CabbageDevelopment/addtopath",
     author="Sam McCormack",
     author_email="cabbagedevelopment@gmail.com",
     classifiers=[
@@ -47,6 +45,9 @@ setup(
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
     ],
+    project_urls={
+        "Source": "https://github.com/CabbageDevelopment/add-to-path"
+    },
     keywords="cli tool path windows",
     entry_points={"console_scripts": ["addtopath=addtopath:cli"]},
 )
