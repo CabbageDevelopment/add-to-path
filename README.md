@@ -22,15 +22,29 @@ To add the current working directory to the PATH:
 addtopath .
 ```
 
-It also works with the `~` in Powershell, for example:
+It works with relative paths:
+
+```bash
+addtopath ..
+```
+
+It also works with the `~` symbol in Powershell, for example:
 
 ```bash
 addtopath ~/scripts
 ```
 
+You can, of course, supply the absolute path to your target directory:
+
+```bash
+addtopath "C:\Program Files\SomeProgram"
+```
+
 ## User and system PATHs
 
-`addtopath` adds to the *user* path by default. This doesn't require admin permissions, and is usually sufficient. However, you can also add to the *system* path using the `-s` or `--system` flag.
+`addtopath` adds to the *user* path by default. This doesn't require admin permissions, and is usually sufficient. However, you can instead add to the *system* path using the `-s` or `--system` flag.
+
+For example:
 
 ```bash
 addtopath . -s
