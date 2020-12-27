@@ -98,7 +98,8 @@ else:
     except subprocess.CalledProcessError as e:
         traceback.print_exc()
 
-        print(f"\nThere was an error running the command. ", end="")
+        hashes = 20 * "#"
+        print(f"\n{hashes} ERROR {hashes}\n\nThere was an error running the command. ", end="\n")
         if args.system:
             print(
                 f"Are you in an elevated shell? You need admin permissions to add to the system PATH."
