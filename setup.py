@@ -45,9 +45,7 @@ setup(
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
     ],
-    project_urls={
-        "Source": "https://github.com/CabbageDevelopment/add-to-path"
-    },
+    project_urls={"Source": "https://github.com/CabbageDevelopment/add-to-path"},
     keywords="cli tool path windows",
     entry_points={"console_scripts": ["addtopath=addtopath:cli"]},
 )

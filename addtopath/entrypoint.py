@@ -19,35 +19,20 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+import os
 import platform
 import re
 import subprocess
 import sys
 import traceback
-from argparse import ArgumentParser
 from os.path import abspath, expandvars, expanduser
+from typing import List
+
+from addtopath.argparsing import args
 
 if platform.system() != "Windows":
     print(f"Sorry, we only support Windows at the moment.")
     sys.exit(1)
-
-argparser = ArgumentParser()
-
-argparser.add_argument("path", help="The path to add to the PATH")
-argparser.add_argument(
-    "-d",
-    "--dry-run",
-    action="store_true",
-    help="Print the command which would be run, but don't execute it",
-)
-argparser.add_argument(
-    "-s",
-    "--system",
-    action="store_true",
-    help="Whether to add to the system PATH; will require elevated permissions in your shell",
-)
-
-args = argparser.parse_args()
 
 
 def get_abs(path: str) -> str:
@@ -55,52 +40,136 @@ def get_abs(path: str) -> str:
 
 
 def run_command(command: str):
-    return subprocess.check_output(command).decode("utf-8").replace("\r", "\n")
+    return subprocess.check_output(command).decode("utf-8").replace("\r", "").rstrip()
 
 
 def get_command(target: str, user: bool) -> str:
-    env_var_target = (
-        f"[System.EnvironmentVariableTarget]::{'User' if user else 'Machine'}"
-    )
-
-    path_cmd = f'powershell.exe /c "[System.Environment]::GetEnvironmentVariable("""PATH""", {env_var_target})"'
+    """
+    Returns the Powershell command which will add the new item to the path.
+    """
+    path_cmd = powershell_command_get_path(user)
     path_cmd_stdout = run_command(path_cmd)
 
     path = re.findall(r"^\s*(.*)\s*$", path_cmd_stdout)[0]
 
-    for item in path.split(";"):
-        if item == target:
-            print(f"Error: '{target}' is already on the PATH.")
-            exit(1)
+    if (
+        not args.force
+        and any(item == target for item in path.split(";"))
+        and not args.remove
+    ):
+        print(f"Error: '{target}' is already on the PATH.")
+        sys.exit(1)
 
+    # Ensure PATH ends with semicolon.
     if not re.match(r".*;\s*$", path):
         path = f"{path};"
 
-    path = f"{path}{target}"
-    set_cmd = f'powershell.exe /c "[System.Environment]::SetEnvironmentVariable("""PATH""", """{path}""", {env_var_target})"'
+    if args.remove:
+        path = remove_from_path(path, target)
+    else:
+        path = add_to_path(path, target, prepend=args.prepend)
+
+    # Ensure path does not end in semicolon.
+    path = re.findall(r"^(.*?);?\s*$", path)[0]
+
+    set_cmd = (
+        f'powershell.exe /c "[System.Environment]::'
+        f'SetEnvironmentVariable("""PATH""", """{path}""", {_get_environment_var_target(user)})"'
+    )
 
     return set_cmd
 
 
-target = get_abs(args.path)
-print(f"Adding '{target}' to the {'system' if args.system else 'user'} PATH...")
+def _get_environment_var_target(user: bool) -> str:
+    return f"[System.EnvironmentVariableTarget]::" f"{'User' if user else 'Machine'}"
 
-command = get_command(target, not args.system)
-if args.dry_run:
-    print(f"\nThis is the command we'll run:\n\n")
-    print(command)
-else:
-    try:
-        run_command(command)
+
+def powershell_command_get_path(user: bool) -> str:
+    env_var_target = _get_environment_var_target(user)
+    return f'powershell.exe /c "[System.Environment]::GetEnvironmentVariable("""PATH""", {env_var_target})"'
+
+
+def get_current_path(user: bool) -> List[str]:
+    cmd = powershell_command_get_path(user)
+    path = run_command(cmd)
+
+    return path.split(";")
+
+
+def add_to_path(path: str, target: str, prepend: bool) -> str:
+    if prepend:
+        path = f"{target};{path}"
+    else:
+        path = f"{path}{target}"
+    return path
+
+
+def remove_from_path(path: str, to_remove: str) -> str:
+    matches = []
+    current_items = path.split(";")
+
+    for item in current_items:
+        try:
+            if os.path.samefile(to_remove, item):
+                matches.append(item)
+        except:
+            if os.path.normpath(item) == os.path.normpath(to_remove):
+                matches.append(item)
+
+    if not matches:
+        print(f"Error: '{to_remove}' not found on the PATH.")
+        sys.exit(1)
+
+    new_items = []
+    for item in current_items:
+        if item not in matches:
+            new_items.append(item)
+
+    [print(f"Removing '{i}' from the PATH") for i in matches]
+    return ";".join(new_items)
+
+
+for p in args.path:
+    target = get_abs(p)
+
+    if not args.force and not os.path.exists(target) and not args.remove:
         print(
-            f"\nAdded to the PATH. Don't forget, you'll need to open a new terminal to see the changes."
+            f"Error: location '{target}' does not exist. "
+            f"Re-run with the '--force' parameter if you still wish to add to the PATH."
         )
-    except subprocess.CalledProcessError as e:
-        traceback.print_exc()
+        sys.exit(1)
 
-        hashes = 20 * "#"
-        print(f"\n{hashes} ERROR {hashes}\n\nThere was an error running the command. ", end="\n")
-        if args.system:
+    if not args.remove:
+        print(f"Adding '{target}' to the {'system' if args.system else 'user'} PATH...")
+
+    command = get_command(target, user=not args.system)
+    if args.dry_run:
+        print(f"\nThis is the command we'll run:\n")
+        print(command)
+    else:
+        try:
+            run_command(command)
             print(
-                f"Are you in an elevated shell? You need admin permissions to add to the system PATH."
+                f"\nPATH updated. Don't forget, you'll need to open a new terminal to see the changes."
             )
+        except subprocess.CalledProcessError as e:
+            traceback.print_exc()
+
+            hashes = 20 * "#"
+            print(
+                f"\n{hashes} ERROR {hashes}\n\n"
+                f"There was an error running the command. ",
+                end="\n",
+            )
+            if args.system:
+                print(
+                    f"Are you in an elevated shell? "
+                    f"You need admin permissions to add to the system PATH."
+                )
+
+if args.show:
+    items = get_current_path(user=not args.system)
+    print(f"\nCurrent items on the PATH:", end="\n\n")
+
+    for i in items:
+        print(f"'{i}'")
