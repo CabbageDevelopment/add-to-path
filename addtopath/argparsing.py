@@ -70,5 +70,12 @@ argparser.add_argument(
     action="store_true",
     help="Generate a Powershell script which updates the PATH in the current session",
 )
+argparser.add_argument(
+    "-pso",
+    "--print-script-only",
+    action="store_true",
+    help="Only print the command required to run the Powershell "
+    "script generated with the '--generate-script' parameter",
+)
 
 args = argparser.parse_args()

@@ -34,6 +34,13 @@ if platform.system() != "Windows":
     print(f"Sorry, we only support Windows at the moment.")
     sys.exit(1)
 
+sys_print = print
+
+
+def print(*args, quiet=None, **kwargs):
+    if not quiet:
+        sys_print(*args, **kwargs)
+
 
 def get_abs_path(path: str) -> str:
     """
@@ -200,8 +207,11 @@ for p in args.path:
         try:
             run_command(command)
             print(
-                f"\nPATH updated. Don't forget to open a new terminal, or run "
-                f"'addtopath -g' to update the current session."
+                f"\nPATH updated persistently. "
+                f"To refresh the PATH in the current Powershell session, "
+                f"run the command:\n\n"
+                f"Invoke-Expression $(addtopath -g -pso)",
+                end="\n\n",
             )
         except subprocess.CalledProcessError as e:
             traceback.print_exc()
@@ -228,13 +238,16 @@ if args.show:
         print(f"'{i}'")
 
 if args.generate_script:
-    print(f"Creating Powershell script to update the PATH in the current session...")
+    script_only = args.print_script_only
+    print(
+        f"Creating Powershell script to update the PATH in the current session...",
+        quiet=script_only,
+    )
 
     cmd = (
         f'$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + '
         f'[System.Environment]::GetEnvironmentVariable("Path","User")\n'
         f'Write-Output "Updated PATH in current session."\n'
-        f'Write-Output "Script deleting self."\n'
         f"rm $PSCommandPath"
     )
 
@@ -243,6 +256,9 @@ if args.generate_script:
     for i in range(2):
         try:
             if os.path.exists(filename):
+                if script_only:
+                    break
+
                 print(f"Error: script already exists. Will not overwrite.")
                 sys.exit(1)
             with open(filename, "w") as f:
@@ -250,15 +266,21 @@ if args.generate_script:
                 break
         except PermissionError:
             print(
-                f"Don't have write permissions in '{os.getcwd()}', falling back to home directory."
+                f"Don't have write permissions in '{os.getcwd()}', falling back to home directory.",
+                quiet=script_only,
             )
             filename = os.path.join(os.path.expanduser("~"), filename)
 
-    print(
-        f"\nSelf-deleting Powershell script generated. "
-        f"Execute the script with the command:\n\n.\\{os.path.relpath(filename)}",
-        end="\n\n",
-    )
+    script_command = f".\\{os.path.relpath(filename)}"
+
+    if not script_only:
+        print(
+            f"\nSelf-deleting Powershell script generated. "
+            f"Execute the script with the command:\n\n{script_command}",
+            end="\n\n",
+        )
+    else:
+        print(script_command)
 
 if not (args.show or args.generate_script or args.path):
     print(f"Nothing to do.")
