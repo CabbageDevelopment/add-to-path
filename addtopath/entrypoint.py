@@ -35,8 +35,50 @@ if platform.system() != "Windows":
     sys.exit(1)
 
 
-def get_abs(path: str) -> str:
-    return abspath(expandvars(expanduser(path)))
+def get_abs_path(path: str) -> str:
+    """
+    Gets the fully evaluated absolute path for a given path.
+
+    This function uses a horrific workaround for an issue where CMD and Powershell 5 provide incorrect arguments
+    when called with a path with spaces which ends in a backslash, like ".\my path\".
+
+    This is problematic because Powershell likes to autocomplete paths in the above format. This issue is no
+    longer present in Powershell 7.
+    """
+    abs_path = abspath(expandvars(expanduser(path)))
+    fixed = False
+
+    # Fixes an issue where paths like ".\my path\" are provided to the program with a trailing quotation mark
+    # due to an obscure bug.
+    try:
+        matches = re.findall(r'^(.*?)"?([^"]*?)$', abs_path)[0]
+
+        # If there are an even number of quotation marks, fix it somehow.
+        if abs_path.count('"') % 2 == 0:
+            fixed = True
+            if matches[1] and not matches[0]:
+                matches = (matches[1],)
+    except:
+        print(f"Bad path: '{abs_path}'")
+
+    if (
+        not fixed
+        and len(matches) > 1
+        and (not matches[0] or (matches[0] and matches[1]))
+    ):
+        print(
+            f"\nCouldn't parse arguments, probably due to a bug in CMD or Powershell 5. You can fix this by:\n\n"
+            f"\t a) Removing the trailing backslash from your path\n"
+            f"\t b) Upgrading to a newer version of Powershell, such as Powershell 7\n"
+        )
+
+        print(
+            f"These are the system arguments that were received before parsing; you can probably see "
+            f"that the path has a strange extra quotation mark:\n\n{['<PATH_TO_EXECUTABLE>'] + sys.argv[1:]}\n"
+        )
+        sys.exit(1)
+
+    return matches[0]
 
 
 def run_command(command: str):
@@ -135,7 +177,7 @@ def remove_from_path_str(path: str, to_remove: str) -> str:
 
 
 for p in args.path:
-    target = get_abs(p)
+    target = get_abs_path(p)
     if os.path.isfile(target):
         target = os.path.dirname(target)
         print(f"'{target}' is a file; using its parent folder instead.")
