@@ -64,5 +64,11 @@ argparser.add_argument(
     action="store_true",
     help="Show the items on the PATH",
 )
+argparser.add_argument(
+    "-g",
+    "--generate-script",
+    action="store_true",
+    help="Generate a Powershell script which updates the PATH in the current session",
+)
 
 args = argparser.parse_args()
