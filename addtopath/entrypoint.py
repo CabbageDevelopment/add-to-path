@@ -63,12 +63,12 @@ def get_command(target: str, user: bool, process=False) -> str:
         path = f"{path};"
 
     if args.remove:
-        path = remove_from_path(path, target)
+        path = remove_from_path_str(path, target)
     else:
-        path = add_to_path(path, target, prepend=args.prepend)
+        path = add_to_path_str(path, target, prepend=args.prepend)
 
-    # Ensure path does not end in semicolon.
-    path = re.findall(r"^(.*?);?\s*$", path)[0]
+    # Ensure path does not end in semicolon or backslash.
+    path = re.findall(r"^(.*?)\\?;?\s*$", path)[0]
 
     set_cmd = (
         f'powershell.exe /c "[System.Environment]::'
@@ -97,7 +97,7 @@ def get_current_path(user: bool) -> List[str]:
     return path.split(";")
 
 
-def add_to_path(path: str, target: str, prepend: bool) -> str:
+def add_to_path_str(path: str, target: str, prepend: bool) -> str:
     if prepend:
         path = f"{target};{path}"
     else:
@@ -105,9 +105,9 @@ def add_to_path(path: str, target: str, prepend: bool) -> str:
     return path
 
 
-def remove_from_path(path: str, to_remove: str) -> str:
-    matches = []
+def remove_from_path_str(path: str, to_remove: str) -> str:
     current_items = path.split(";")
+    matches = []
 
     for item in current_items:
         try:
@@ -118,7 +118,9 @@ def remove_from_path(path: str, to_remove: str) -> str:
                 matches.append(item)
 
     if not matches:
-        print(f"Error: '{to_remove}' not found on the PATH.")
+        print(
+            f"Error: '{to_remove}' not found on the {'system' if args.system else 'user'} PATH."
+        )
         sys.exit(1)
 
     new_items = []
@@ -126,10 +128,9 @@ def remove_from_path(path: str, to_remove: str) -> str:
         if item not in matches:
             new_items.append(item)
 
-    [
+    for i in matches:
         print(f"Removing '{i}' from the {'system' if args.system else 'user'} PATH")
-        for i in matches
-    ]
+
     return ";".join(new_items)
 
 
@@ -172,7 +173,7 @@ for p in args.path:
             if args.system:
                 print(
                     f"Are you in an elevated shell? "
-                    f"You need admin permissions to add to the system PATH."
+                    f"You need admin permissions to change the system PATH."
                 )
 if args.show:
     items = get_current_path(user=not args.system)
@@ -199,6 +200,9 @@ if args.generate_script:
 
     for i in range(2):
         try:
+            if os.path.exists(filename):
+                print(f"Error: script already exists. Will not overwrite.")
+                sys.exit(1)
             with open(filename, "w") as f:
                 f.write(cmd)
                 break
@@ -214,5 +218,5 @@ if args.generate_script:
         end="\n\n",
     )
 
-elif not args.path:
+if not (args.show or args.generate_script or args.path):
     print(f"Nothing to do.")
